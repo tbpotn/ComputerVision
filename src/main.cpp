@@ -16,7 +16,10 @@ const float calibrationSquareDimension = 0.024f; //meters
 // amount of inside crossings on the pattern
 const Size chessboardDimensions = Size(6, 9);
 
-Mat rvec, tvec;
+vector<Point3f> pointsToDraw;
+vector<Point2f> resultingPoints;
+Mat rotationMatrix;
+
 vector<Point3f> points;
 vector<Vec2f> foundPoints;
 bool found = false;
@@ -108,16 +111,13 @@ bool saveCameraCalibration(string name, Mat cameraMatrix, Mat distanceCoefficien
 				outStream << value << endl;
 			}
 		}
-
-		
-
 		outStream.close();
 		return true;
-
 	}
 
 	return false;
 }
+
 
 //main function to start webcam and do the calibration and drawings
 int main(int argv, char** argc, int mode)
@@ -127,6 +127,7 @@ int main(int argv, char** argc, int mode)
 	Mat drawToFrame;
 	Mat undistortFrame0;
 	Mat undistortFrame1;
+	Mat rvec, tvec;
 
 	//camera matrix and distance coefficients
 	Mat cameraMatrix = Mat::eye(3, 3, CV_64F);
@@ -166,7 +167,6 @@ int main(int argv, char** argc, int mode)
 		{
 			//find the crossings on the checkerboard if present
 			
-
 			found = findChessboardCorners(frame, chessboardDimensions, foundPoints, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE);
 			//copy frame and draw the crossings
 			frame.copyTo(drawToFrame);
@@ -238,8 +238,38 @@ int main(int argv, char** argc, int mode)
 					points.resize(foundPoints.size());
 					
 
-					solvePnP(points, Mat(foundPoints), CalibratedValues, DistanceCalibrated, rvec, tvec);
+					solvePnP(points, foundPoints, CalibratedValues, DistanceCalibrated, rvec, tvec);
+					//Rodrigues(rvec, rotationMatrix);
 
+					
+					pointsToDraw.push_back(Point3f(0, 0, 0));
+					pointsToDraw.push_back(Point3f(4*calibrationSquareDimension, 0, 0));
+					pointsToDraw.push_back(Point3f(0, 4*calibrationSquareDimension, 0));
+					pointsToDraw.push_back(Point3f(0, 0, 4*calibrationSquareDimension));
+					pointsToDraw.push_back(Point3f(2 * calibrationSquareDimension, 0, 0));
+					pointsToDraw.push_back(Point3f(2 * calibrationSquareDimension, 2 * calibrationSquareDimension, 0));
+					pointsToDraw.push_back(Point3f(0, 2 * calibrationSquareDimension, 0));
+					pointsToDraw.push_back(Point3f(0, 0, 2 * calibrationSquareDimension));
+					pointsToDraw.push_back(Point3f(2 * calibrationSquareDimension, 0, 2 * calibrationSquareDimension));
+					pointsToDraw.push_back(Point3f(2 * calibrationSquareDimension, 2 * calibrationSquareDimension, 2 * calibrationSquareDimension));
+					pointsToDraw.push_back(Point3f(0, 2 * calibrationSquareDimension, 2 * calibrationSquareDimension));
+					
+					projectPoints(pointsToDraw, rvec, tvec, CalibratedValues, DistanceCalibrated, resultingPoints);
+					line(frame, resultingPoints.at(0), resultingPoints.at(1), (255, 0, 0), 1, 8, 0);
+					line(frame, resultingPoints.at(0), resultingPoints.at(2), (0, 255, 0), 1, 8, 0);
+					line(frame, resultingPoints.at(0), resultingPoints.at(3), (0 , 0, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(0), resultingPoints.at(4), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(4), resultingPoints.at(5), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(5), resultingPoints.at(6), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(6), resultingPoints.at(0), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(7), resultingPoints.at(8), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(8), resultingPoints.at(9), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(9), resultingPoints.at(10), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(10), resultingPoints.at(7), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(0), resultingPoints.at(7), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(4), resultingPoints.at(8), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(5), resultingPoints.at(9), (0, 255, 255), 1, 8, 0);
+					line(frame, resultingPoints.at(6), resultingPoints.at(10), (0, 255, 255), 1, 8, 0);
 				}
 			undistort(frame, undistortFrame1, CalibratedValues, DistanceCalibrated);
 			imshow("Webcam", undistortFrame1);
