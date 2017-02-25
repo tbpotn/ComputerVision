@@ -5,6 +5,7 @@
 #include "opencv2\imgproc.hpp"
 #include "opencv2\highgui.hpp"
 #include "opencv2\calib3d.hpp"
+#include "opencv2\video.hpp"
 
 #include <sstream>
 #include <iostream>
@@ -16,23 +17,38 @@ using namespace cv;
 // size of the squares on the board
 const float calibrationSquareDimension = 0.115f; //meters
 // amount of inside crossings on the pattern
-const Size chessboardDimensions = Size(6, 8);
+const Size chessboardDimensions = Size(8, 6);
 
 
 
 //true for calibration mode, false for using predefined calibrated values
 const bool calibrationMode = false;
 const bool videotest = true;
+const bool backgroundMaking = false;
+
 
 
 
 //predefined calibrated values
-const Mat CalibratedValues = (Mat_<float>(3, 3) << 703.235, 0, 3, 0, 526.117, 4.5, 0, 0, 1);
-const Mat DistanceCalibrated = (Mat_<float>(5, 1) << -0.0397106, 0.000333702, 0.00542373, 0.00241272, -5.83182e-07);
+const Mat CalibratedValues = (Mat_<float>(3, 3) << 495.231
+	,0
+	,331.735
+	,0
+	,496.27
+	,250.625
+	,0
+	,0
+	,1);
+const Mat DistanceCalibrated = (Mat_<float>(5, 1) << -0.331566
+	,0.179457
+	,- 0.0044484
+	,0.00591031
+	,- 0.0797654);
 
 //given a board create the positions of all crossings
 void createKnownBoardPosition(Size boardSize, float squareEdgeLength, vector<Point3f>& corners)
 {
+
 	for (int i = 0; i < boardSize.height; i++)
 	{
 		for (int j = 0; j < boardSize.width;j++)
@@ -49,7 +65,7 @@ void getChessboardCorners(vector<Mat> images, vector<vector<Point2f>>& allFoundC
 	{
 		vector<Point2f> pointBuf;
 		bool found = findChessboardCorners(*iter, Size(8,6), pointBuf, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE);
-
+		
 		if (found)
 		{
 			allFoundCorners.push_back(pointBuf);
@@ -78,6 +94,7 @@ void getChessboardCorners(vector<Mat> images, vector<vector<Point2f>>& allFoundC
 //calibrate the camera based on a set of images, the board dimensions and size of a square
 void cameraCalibration(vector<Mat> calibrationImages, Size boardSize, float squareEdgeLength, Mat& cameraMatrix, Mat& distanceCoefficients)
 {
+
 	vector<Mat> extra;
 	vector<vector<Point2f>> checkerBoardImageSpacePoints;
 	getChessboardCorners(calibrationImages, checkerBoardImageSpacePoints, extra, false);
@@ -90,7 +107,9 @@ void cameraCalibration(vector<Mat> calibrationImages, Size boardSize, float squa
 	vector<Mat> rVectors, tVectors;
 	distanceCoefficients = Mat::zeros(8, 1, CV_64F);
 
-	calibrateCamera(worldSpaceCornerPoints, checkerBoardImageSpacePoints, boardSize, cameraMatrix, distanceCoefficients, rVectors, tVectors);
+	Size imageSize = calibrationImages[0].size();
+
+	calibrateCamera(worldSpaceCornerPoints, checkerBoardImageSpacePoints, imageSize, cameraMatrix, distanceCoefficients, rVectors, tVectors);
 }
 
 //saving the values of the calibration in a simple file
@@ -178,20 +197,26 @@ int main(int argv, char** argc, int mode)
 	if (videotest)
 	{
 		//number of images
-		int Count = 458;
+		int Count = 270;
 		vector<Mat> cam1Images;
+
 		//obtain all images from folder
 		for (int i = 0; i < Count; i++)
 		{
 			//change per camera
-			string name = format("C:\\Users\\joep\\Desktop\\ComputerVision1\\data\\cam4images\\scene%05d.png", i*10 + 1);
+			string name = format("C:\\Users\\joep\\Desktop\\ComputerVision1\\data\\cam1images\\scene%05d.png", i*10 + 1);
 			Mat img = imread(name);
 			if (img.empty())
 			{
 				cerr << name << "can't be loaded" << endl;
 				continue;
 			}
-			cam1Images.push_back(img);
+			Mat frame;
+			undistort(img, frame, CalibratedValues, DistanceCalibrated);
+			imshow("undistorted", frame);
+			imshow("distorted", img);
+			waitKey();
+			//cam1Images.push_back(img);
 		}
 
 
@@ -200,12 +225,38 @@ int main(int argv, char** argc, int mode)
 		//modified getchessboardcorners so you can say y if you want to use a frame for calibration and n if you want to ignore it
 		getChessboardCorners(cam1Images, foundCorners, acceptedImages, true);
 		
+
 		Mat cameraMatrix = Mat::eye(3, 3, CV_64F);
 		Mat distanceCoefficients;
 		cameraCalibration(acceptedImages, chessboardDimensions, calibrationSquareDimension, cameraMatrix, distanceCoefficients);
+		
 		//change file name per camera
-		saveCameraCalibration("camera4calibration", cameraMatrix, distanceCoefficients);
+		saveCameraCalibration("camera1calibration", cameraMatrix, distanceCoefficients);
 
+
+	}
+	else if (backgroundMaking)
+	{
+		int Count = 11;
+		vector<Mat> backgroundImages;
+		
+		Mat imgRef = imread("C:\\Users\\joep\\Desktop\\ComputerVision1\\data\\cam1background\\scene00001.png");
+		Mat backgroundPNG = Mat::zeros(imgRef.size(),CV_32FC3);
+
+
+		//obtain all images from folder
+		for (int i = 0; i < Count; i++)
+		{
+			//change per camera
+			string name = format("C:\\Users\\joep\\Desktop\\ComputerVision1\\data\\cam4background\\scene%05d.png", i * 10 + 1);
+			Mat img = imread(name);
+			Mat img2;
+			img.convertTo(img2, CV_32FC3);
+			backgroundPNG += img2;
+		}
+		backgroundPNG /= Count;
+		int channels = backgroundPNG.channels();
+		imwrite("C:\\Users\\joep\\Desktop\\ComputerVision1\\data\\cam4background\\backgroundcam4.png", backgroundPNG);
 
 	}
 	else
